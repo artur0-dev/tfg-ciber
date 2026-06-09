@@ -1,0 +1,57 @@
+name: Pipeline DevSecOps - TFG Arturo
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  sast-bandit:
+    name: SAST - Bandit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Instalar Bandit
+        run: pip install bandit
+      - name: Ejecutar análisis SAST
+        run: bandit -r . -f txt -o reporte_bandit.txt || true
+      - name: Mostrar resultados
+        run: cat reporte_bandit.txt
+
+  secrets-detection:
+    name: Detección de secretos - Gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Ejecutar Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-check:
+    name: Análisis de dependencias - Safety
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Instalar Safety
+        run: pip install safety
+      - name: Escanear dependencias
+        run: safety check || true
+
+  docker-scan:
+    name: Escaneo de imagen Docker - Trivy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Crear Dockerfile de prueba
+        run: |
+          echo "FROM python:3.9" > Dockerfile
+          echo "COPY app_vulnerable.py ." >> Dockerfile
+      - name: Ejecutar Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'python:3.9'
+          format: 'table'
+          exit-code: '0'
